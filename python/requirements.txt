@@ -1,0 +1,7 @@
+numpy>=1.24,<2
+scipy>=1.11
+pyaudio>=0.2.13
+tensorflow>=2.13,<3
+tensorflow-hub>=0.14
+# On RPi for inference-only, replace tensorflow with:
+# tflite-runtime>=2.13

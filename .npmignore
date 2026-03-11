@@ -1,0 +1,13 @@
+src/
+tsconfig.json
+.gitignore
+.github/
+python/.venv/
+python/models/*.tflite
+python/models/metadata.json
+python/models/fingerprints.json
+python/samples/doorbell/*.wav
+python/samples/not_doorbell/*.wav
+*.ts
+!*.d.ts
+.DS_Store

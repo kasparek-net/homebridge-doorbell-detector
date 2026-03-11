@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doorbell ML</title>
+<style>
+  :root {
+    /* Map to Homebridge Config UI X theme variables (Bootstrap) */
+    --bg: var(--bs-body-bg, #ffffff);
+    --surface: var(--bs-tertiary-bg, #f8f9fa);
+    --surface2: var(--bs-secondary-bg, #e9ecef);
+    --accent: #e94560;
+    --accent2: var(--bs-primary, #0ea5e9);
+    --green: var(--bs-success, #22c55e);
+    --yellow: var(--bs-warning, #eab308);
+    --text: var(--bs-body-color, #212529);
+    --text2: var(--bs-secondary-color, #6c757d);
+    --border: var(--bs-border-color, #dee2e6);
+    --radius: 12px;
+    --canvas-bg: var(--bs-tertiary-bg, #f0f0f0);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: transparent;
+    color: var(--text);
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ──────────────────────────────── */
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .header h1 { font-size: 1.4rem; font-weight: 600; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block; margin-right: 8px;
+  }
+  .status-dot.connected { background: var(--green); }
+  .status-dot.disconnected { background: var(--accent); }
+
+  /* ── Mic indicator ──────────────────────── */
+
+  .mic-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: var(--surface2);
+    color: var(--text2);
+    margin-left: 12px;
+  }
+  .mic-indicator.active {
+    background: rgba(233, 69, 96, 0.2);
+    color: var(--accent);
+  }
+  .mic-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text2);
+  }
+  .mic-indicator.active .mic-dot {
+    background: var(--accent);
+    animation: mic-pulse 1.5s infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── Cards ───────────────────────────────── */
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text2);
+    margin-bottom: 12px;
+  }
+
+  /* ── Method toggle ───────────────────────── */
+
+  .method-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .method-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: 2px solid var(--surface2);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text2);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .method-btn.active {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: color-mix(in srgb, var(--accent2) 12%, transparent);
+  }
+  .method-btn:hover:not(.active) {
+    border-color: var(--text2);
+  }
+  .method-info {
+    font-size: 0.8rem;
+    color: var(--text2);
+    margin-top: 8px;
+  }
+
+  /* ── Confidence ──────────────────────────── */
+
+  .confidence-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .confidence-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 110px;
+  }
+  .confidence-bar-outer {
+    flex: 1;
+    height: 24px;
+    background: var(--surface2);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+  .confidence-bar-inner {
+    height: 100%;
+    border-radius: 12px;
+    transition: width 0.15s ease, background 0.3s ease;
+    width: 0%;
+  }
+  .confidence-bar-inner.low { background: var(--green); }
+  .confidence-bar-inner.mid { background: var(--yellow); }
+  .confidence-bar-inner.high { background: var(--accent); }
+  .threshold-marker {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: var(--text);
+    opacity: 0.6;
+  }
+  .inference-time {
+    font-size: 0.75rem;
+    color: var(--text2);
+    margin-top: 6px;
+  }
+
+  /* ── Canvases ────────────────────────────── */
+
+  .canvas-wrap {
+    background: var(--canvas-bg);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 12px;
+  }
+  canvas {
+    width: 100%;
+    display: block;
+    border-radius: 6px;
+  }
+
+  /* ── Detection controls ──────────────────── */
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent2); color: white; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.15); }
+  .btn-danger { background: var(--accent); color: white; }
+  .btn-danger:hover:not(:disabled) { filter: brightness(1.15); }
+  .btn-secondary { background: var(--surface2); color: var(--text); }
+  .btn-secondary:hover:not(:disabled) { filter: brightness(1.3); }
+
+  /* ── Samples ─────────────────────────────── */
+
+  .sample-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .sample-box {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .sample-count {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  .sample-label {
+    font-size: 0.8rem;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+
+  /* ── Training ────────────────────────────── */
+
+  .progress-bar-outer {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+  .progress-bar-inner {
+    height: 100%;
+    background: var(--accent2);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+  .training-stats {
+    font-size: 0.8rem;
+    color: var(--text2);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── Detection log ───────────────────────── */
+
+  .log-list {
+    max-height: 250px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  .log-entry {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+  }
+  .log-entry:nth-child(odd) { background: var(--surface2); }
+  .log-time { color: var(--text2); }
+  .log-method { color: var(--accent2); }
+  .log-confidence { color: var(--green); font-weight: 600; }
+  .log-empty { color: var(--text2); padding: 20px; text-align: center; }
+
+  /* ── VU meter ───────────────────────────── */
+
+  .vu-meter-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .vu-meter-row label {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
+  .vu-meter-outer {
+    flex: 1;
+    height: 12px;
+    background: var(--surface2);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .vu-meter-bar {
+    height: 100%;
+    border-radius: 6px;
+    width: 0%;
+    transition: width 0.1s ease, background 0.2s ease;
+    background: var(--green);
+  }
+  .vu-meter-bar.mid { background: var(--yellow); }
+  .vu-meter-bar.high { background: var(--accent); }
+  .vu-meter-val {
+    min-width: 55px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: var(--text2);
+  }
+
+  /* ── Sidecar banner ────────────────────── */
+
+  .sidecar-banner {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    display: none;
+    background: rgba(233, 69, 96, 0.12);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+  .sidecar-banner.visible { display: block; }
+  .sidecar-banner strong { display: block; margin-bottom: 4px; }
+  .sidecar-troubleshoot {
+    font-size: 0.75rem;
+    color: var(--text2);
+    margin-top: 6px;
+  }
+
+  /* ── Quality badge ─────────────────────── */
+
+  .quality-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-left: 8px;
+  }
+  .quality-good { background: rgba(34,197,94,0.15); color: var(--green); }
+  .quality-warn { background: rgba(234,179,8,0.15); color: var(--yellow); }
+  .quality-bad { background: rgba(233,69,96,0.15); color: var(--accent); }
+
+  /* ── Sample list ───────────────────────── */
+
+  .sample-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .sample-list:empty { display: none; }
+  .sample-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+  .sample-item:last-child { border-bottom: none; }
+  .sample-item:nth-child(odd) { background: var(--surface2); }
+  .sample-item-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--surface2);
+    color: var(--text2);
+    letter-spacing: 0.03em;
+  }
+  .sample-item-label.doorbell { background: rgba(233,69,96,0.15); color: var(--accent); }
+  .sample-item-name { flex: 1; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; }
+  .sample-item-dur { color: var(--text2); font-size: 0.75rem; min-width: 35px; text-align: right; }
+  .sample-btn {
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1.2;
+  }
+  .sample-btn:hover { color: var(--text); background: var(--surface2); }
+  .sample-btn.delete:hover { background: rgba(233,69,96,0.15); color: var(--accent); }
+
+  /* ── Mic select ─────────────────────────── */
+
+  .mic-select-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .mic-select-row label {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
+  .mic-select-row select {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-family: inherit;
+  }
+  .mic-select-row select:focus {
+    outline: 2px solid var(--accent2);
+    outline-offset: -1px;
+  }
+  .mic-status {
+    font-size: 0.75rem;
+    color: var(--text2);
+    margin-bottom: 12px;
+  }
+  .mic-status.no-mic {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .mic-refresh-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+  .mic-refresh-btn:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  /* ── Slider ──────────────────────────────── */
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .slider-row label {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
+  .slider-row input[type=range] { flex: 1; }
+  .slider-row .slider-val {
+    min-width: 45px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>
+    <span class="status-dot disconnected" id="statusDot"></span>Doorbell Detector
+    <span class="mic-indicator" id="micIndicator">
+      <span class="mic-dot"></span>MIC
+    </span>
+  </h1>
+  <div class="controls">
+    <button class="btn btn-primary" id="btnStartStop" onclick="toggleDetection()">Start</button>
+    <button class="btn btn-secondary" id="btnTest" onclick="testDoorbell()">Test</button>
+  </div>
+</div>
+
+<!-- Sidecar status banner -->
+<div class="sidecar-banner" id="sidecarBanner">
+  <strong>Python sidecar neni spusten</strong>
+  <span id="sidecarError"></span>
+  <div class="sidecar-troubleshoot">
+    Zkontrolujte: je nainstalovan Python 3? Existuje virtualenv v python/.venv/?
+    Podrobnosti v logu Homebridge.
+  </div>
+</div>
+
+<!-- Method toggle -->
+<div class="card">
+  <div class="card-title">Metoda detekce</div>
+  <div class="method-toggle">
+    <button class="method-btn active" id="btnFingerprint" onclick="setMethod('fingerprint')">
+      Otisk (FFT)
+    </button>
+    <button class="method-btn" id="btnML" onclick="setMethod('ml')">
+      ML (YAMNet)
+    </button>
+  </div>
+  <div class="method-info" id="methodInfo">Otisk — funguje od 1 vzorku, okamžitá detekce</div>
+</div>
+
+<!-- Confidence -->
+<div class="card">
+  <div class="card-title">Confidence</div>
+  <div class="confidence-row">
+    <div class="confidence-value" id="confidenceValue">0.00</div>
+    <div class="confidence-bar-outer">
+      <div class="confidence-bar-inner low" id="confidenceBar"></div>
+      <div class="threshold-marker" id="thresholdMarker" style="left: 70%"></div>
+    </div>
+  </div>
+  <div class="inference-time" id="inferenceTime">— ms</div>
+</div>
+
+<!-- Waveform + Spectrogram -->
+<div class="card">
+  <div class="card-title">Live Audio</div>
+  <div class="canvas-wrap">
+    <canvas id="waveformCanvas" height="100"></canvas>
+  </div>
+  <div class="canvas-wrap">
+    <canvas id="spectrogramCanvas" height="120"></canvas>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="card">
+  <div class="card-title">Nastaveni</div>
+  <div class="mic-select-row">
+    <label>Mikrofon</label>
+    <select id="micSelect" onchange="onMicChange(this.value)">
+      <option value="">Nacitam...</option>
+    </select>
+    <button class="mic-refresh-btn" onclick="refreshDevices()" title="Obnovit seznam">&#x21bb;</button>
+  </div>
+  <div class="mic-status" id="micStatus">Mikrofon: nacitam...</div>
+  <div class="vu-meter-row">
+    <label>Uroven</label>
+    <div class="vu-meter-outer"><div class="vu-meter-bar" id="vuBar"></div></div>
+    <span class="vu-meter-val" id="vuVal">-- dB</span>
+  </div>
+  <div class="slider-row">
+    <label>Threshold</label>
+    <input type="range" id="sliderThreshold" min="0.1" max="1.0" step="0.05" value="0.70"
+           oninput="onThresholdChange(this.value)">
+    <span class="slider-val" id="thresholdVal">0.70</span>
+  </div>
+  <div class="slider-row">
+    <label>Cooldown</label>
+    <input type="range" id="sliderCooldown" min="0" max="30" step="1" value="5"
+           oninput="onCooldownChange(this.value)">
+    <span class="slider-val" id="cooldownVal">5 s</span>
+  </div>
+</div>
+
+<!-- Samples -->
+<div class="card">
+  <div class="card-title">Vzorky</div>
+  <div class="sample-grid">
+    <div class="sample-box">
+      <div class="sample-count" id="countDoorbell">0</div>
+      <div class="sample-label">Zvonek</div>
+    </div>
+    <div class="sample-box">
+      <div class="sample-count" id="countNotDoorbell">0</div>
+      <div class="sample-label">Okolni zvuky</div>
+    </div>
+  </div>
+  <div class="controls">
+    <button class="btn btn-primary" onclick="recordSample('doorbell')">Nahrat zvonek</button>
+    <button class="btn btn-secondary" onclick="recordSample('not_doorbell')">Nahrat sumi</button>
+    <button class="btn btn-secondary" id="btnListSamples" onclick="toggleSampleList()">Zobrazit vzorky</button>
+    <button class="btn btn-danger" onclick="deleteSamples()">Smazat vse</button>
+  </div>
+  <div class="sample-list" id="sampleList"></div>
+</div>
+
+<!-- Training -->
+<div class="card" id="trainingCard">
+  <div class="card-title">ML Trenovani</div>
+  <div class="controls" style="margin-bottom: 8px;">
+    <button class="btn btn-primary" id="btnTrain" onclick="startTraining()">Trenovat model</button>
+    <span id="trainingStatus" style="font-size: 0.85rem; color: var(--text2); line-height: 2.2;"></span>
+  </div>
+  <div class="progress-bar-outer" id="trainingProgress" style="display: none;">
+    <div class="progress-bar-inner" id="trainingBar"></div>
+  </div>
+  <div class="training-stats" id="trainingStats" style="display: none;">
+    <span id="trainingEpoch">Epoch 0/0</span>
+    <span id="trainingAccuracy">Accuracy: —</span>
+    <span id="trainingLoss">Loss: —</span>
+  </div>
+</div>
+
+<!-- Detection Log -->
+<div class="card">
+  <div class="card-title">Detection Log</div>
+  <div class="log-list" id="logList">
+    <div class="log-empty">Zadne detekce</div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+
+let ws = null;
+let detecting = false;
+let currentMethod = 'fingerprint';
+let threshold = 0.70;
+let currentDeviceIndex = null;
+let knownDevices = [];
+let sidecarConnected = false;
+let sampleListVisible = false;
+let currentAudio = null;
+const detectionLog = [];
+
+// Canvases
+const waveformCanvas = document.getElementById('waveformCanvas');
+const waveformCtx = waveformCanvas.getContext('2d');
+const spectrogramCanvas = document.getElementById('spectrogramCanvas');
+const spectrogramCtx = spectrogramCanvas.getContext('2d');
+
+// Spectrogram history (scrolling)
+let spectrogramHistory = [];
+const SPECTROGRAM_HISTORY_LEN = 80;
+
+// ── WebSocket ──────────────────────────────────────────────────
+
+async function connect() {
+  // Get WS port + auth token from server
+  let port = 8581;
+  let token = '';
+  try {
+    const resp = await homebridge.request('/ws-config');
+    port = resp.port || 8581;
+    token = resp.token || '';
+  } catch (e) {
+    console.warn('Could not get WS config, using defaults', e);
+  }
+
+  // Connect to localhost with auth token
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://127.0.0.1:${port}?token=${encodeURIComponent(token)}`);
+
+  ws.onopen = () => {
+    document.getElementById('statusDot').className = 'status-dot connected';
+    send({ command: 'get_status' });
+    send({ command: 'get_devices' });
+    // Start level monitor if not detecting (will be stopped by sidecar if detection is on)
+    send({ command: 'start_level_monitor' });
+  };
+
+  ws.onclose = () => {
+    document.getElementById('statusDot').className = 'status-dot disconnected';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => {};
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    handleMessage(msg);
+  };
+}
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  }
+}
+
+// ── Message handlers ───────────────────────────────────────────
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'audio_frame':
+      updateConfidence(msg.confidence, msg.inference_ms);
+      updateVuMeter(msg.rms);
+      drawWaveform(msg.waveform_b64);
+      drawSpectrogram(msg.spectrogram_b64, msg.spectrogram_shape);
+      break;
+
+    case 'level':
+      updateVuMeter(msg.rms);
+      break;
+
+    case 'sidecar_status':
+      updateSidecarStatus(msg.connected, msg.error);
+      break;
+
+    case 'detection':
+      addLogEntry(msg);
+      flashDetection();
+      break;
+
+    case 'status':
+      applyStatus(msg);
+      break;
+
+    case 'method_changed':
+      currentMethod = msg.method;
+      updateMethodUI();
+      break;
+
+    case 'recording_started':
+      if (msg.mic_active != null) updateMicIndicator(msg.mic_active);
+      showToast(`Nahravam ${msg.label === 'doorbell' ? 'zvonek' : 'sumi'}...`);
+      break;
+
+    case 'recording_complete':
+      if (msg.mic_active != null) updateMicIndicator(msg.mic_active);
+      updateSampleCounts(msg.counts);
+      showRecordingResult(msg);
+      break;
+
+    case 'training_started':
+      document.getElementById('trainingProgress').style.display = '';
+      document.getElementById('trainingStats').style.display = 'flex';
+      document.getElementById('btnTrain').disabled = true;
+      document.getElementById('trainingStatus').textContent = 'Probiha trenovani...';
+      break;
+
+    case 'training_progress':
+      updateTrainingProgress(msg);
+      break;
+
+    case 'training_complete':
+      document.getElementById('btnTrain').disabled = false;
+      document.getElementById('trainingStatus').textContent =
+        `Hotovo! Accuracy: ${(msg.metrics.val_accuracy * 100).toFixed(1)}%`;
+      break;
+
+    case 'training_failed':
+      document.getElementById('btnTrain').disabled = false;
+      document.getElementById('trainingStatus').textContent = `Chyba: ${msg.error}`;
+      break;
+
+    case 'devices':
+      updateDeviceList(msg.devices);
+      break;
+
+    case 'device_set':
+      currentDeviceIndex = msg.device_index;
+      updateDeviceSelect();
+      showToast('Mikrofon zmenen');
+      break;
+
+    case 'sample_list':
+      renderSampleList(msg.samples);
+      break;
+
+    case 'sample_audio':
+      playSampleAudio(msg.wav_b64);
+      break;
+
+    case 'sample_deleted':
+      updateSampleCounts(msg.counts);
+      if (sampleListVisible) send({ command: 'list_samples' });
+      showToast(`Vzorek smazan (${msg.label})`);
+      break;
+
+    case 'sample_counts':
+    case 'samples_deleted':
+      updateSampleCounts(msg.counts);
+      break;
+
+    case 'error':
+      showToast(`Chyba: ${msg.error}`, true);
+      break;
+  }
+}
+
+function updateMicIndicator(active) {
+  const el = document.getElementById('micIndicator');
+  el.className = 'mic-indicator' + (active ? ' active' : '');
+}
+
+function applyStatus(msg) {
+  detecting = msg.detecting;
+  document.getElementById('btnStartStop').textContent = detecting ? 'Stop' : 'Start';
+  document.getElementById('btnStartStop').className =
+    detecting ? 'btn btn-danger' : 'btn btn-primary';
+
+  if (msg.mic_active != null) updateMicIndicator(msg.mic_active);
+
+  if (msg.method) {
+    currentMethod = msg.method;
+    updateMethodUI();
+  }
+  if (msg.threshold != null) {
+    threshold = msg.threshold;
+    document.getElementById('sliderThreshold').value = threshold;
+    document.getElementById('thresholdVal').textContent = threshold.toFixed(2);
+    document.getElementById('thresholdMarker').style.left = (threshold * 100) + '%';
+  }
+  if (msg.cooldown != null) {
+    document.getElementById('sliderCooldown').value = msg.cooldown;
+    document.getElementById('cooldownVal').textContent = msg.cooldown + ' s';
+  }
+  if (msg.counts) updateSampleCounts(msg.counts);
+  if (msg.fingerprint_count != null) {
+    // Could show fingerprint count somewhere
+  }
+  if (msg.ml_metadata) {
+    document.getElementById('trainingStatus').textContent =
+      `Model: accuracy ${(msg.ml_metadata.val_accuracy * 100).toFixed(1)}%`;
+  }
+}
+
+// ── Commands ───────────────────────────────────────────────────
+
+function toggleDetection() {
+  if (detecting) {
+    send({ command: 'stop_detection' });
+    // Restart level monitor when detection stops
+    setTimeout(() => send({ command: 'start_level_monitor' }), 200);
+  } else {
+    send({ command: 'start_detection' });
+  }
+  detecting = !detecting;
+  document.getElementById('btnStartStop').textContent = detecting ? 'Stop' : 'Start';
+  document.getElementById('btnStartStop').className =
+    detecting ? 'btn btn-danger' : 'btn btn-primary';
+}
+
+function testDoorbell() {
+  send({ command: 'test_doorbell' });
+  document.getElementById('btnTest').disabled = true;
+  showToast('Test doorbell odeslan');
+  setTimeout(() => { document.getElementById('btnTest').disabled = false; }, 2000);
+}
+
+function setMethod(method) {
+  send({ command: 'set_method', method });
+  currentMethod = method;
+  updateMethodUI();
+}
+
+function recordSample(label) {
+  send({ command: 'record_sample', label, duration: 2.0 });
+}
+
+function startTraining() {
+  send({ command: 'start_training', epochs: 50 });
+}
+
+function deleteSamples() {
+  if (confirm('Smazat vsechny vzorky?')) {
+    send({ command: 'delete_samples', label: 'doorbell' });
+    send({ command: 'delete_samples', label: 'not_doorbell' });
+  }
+}
+
+// ── VU meter ──────────────────────────────────────────────────────
+
+function updateVuMeter(rms) {
+  const bar = document.getElementById('vuBar');
+  const val = document.getElementById('vuVal');
+  const db = rms > 0 ? 20 * Math.log10(rms) : -60;
+  // Map -60..0 dB to 0..100%
+  const pct = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+  bar.style.width = pct + '%';
+  bar.className = 'vu-meter-bar' + (db > -6 ? ' high' : db > -20 ? ' mid' : '');
+  val.textContent = db > -59 ? db.toFixed(0) + ' dB' : '-- dB';
+}
+
+// ── Sidecar status ────────────────────────────────────────────────
+
+function updateSidecarStatus(connected, error) {
+  sidecarConnected = connected;
+  const banner = document.getElementById('sidecarBanner');
+  const errEl = document.getElementById('sidecarError');
+
+  if (connected) {
+    banner.className = 'sidecar-banner';
+    setControlsEnabled(true);
+  } else {
+    banner.className = 'sidecar-banner visible';
+    errEl.textContent = error || '';
+    setControlsEnabled(false);
+  }
+}
+
+function setControlsEnabled(enabled) {
+  const btns = ['btnStartStop', 'btnTest', 'btnTrain'];
+  for (const id of btns) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !enabled;
+  }
+}
+
+// ── Sample quality ────────────────────────────────────────────────
+
+function showRecordingResult(msg) {
+  const label = msg.label === 'doorbell' ? 'zvonek' : 'sumi';
+  let text = `Nahrano! (${label})`;
+  let qualClass = '';
+
+  if (msg.quality) {
+    const q = msg.quality;
+    if (q.clipped_ratio > 0.01) {
+      text += ' — Prilis hlasne (clipping)';
+      qualClass = 'quality-bad';
+    } else if (q.rms_db < -35 && msg.label === 'doorbell') {
+      text += ' — Prilis tiche';
+      qualClass = 'quality-warn';
+    } else {
+      text += ' — OK';
+      qualClass = 'quality-good';
+    }
+  }
+  showToast(text, qualClass === 'quality-bad');
+}
+
+// ── Sample list & playback ────────────────────────────────────────
+
+function toggleSampleList() {
+  sampleListVisible = !sampleListVisible;
+  const btn = document.getElementById('btnListSamples');
+  const list = document.getElementById('sampleList');
+
+  if (sampleListVisible) {
+    btn.textContent = 'Skryt vzorky';
+    send({ command: 'list_samples' });
+  } else {
+    btn.textContent = 'Zobrazit vzorky';
+    list.innerHTML = '';
+  }
+}
+
+function renderSampleList(samples) {
+  const list = document.getElementById('sampleList');
+  if (samples.length === 0) {
+    list.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text2);font-size:0.8rem;">Zadne vzorky</div>';
+    return;
+  }
+  list.innerHTML = samples.map(s => {
+    const labelCls = s.label === 'doorbell' ? 'sample-item-label doorbell' : 'sample-item-label';
+    const labelText = s.label === 'doorbell' ? 'zvonek' : 'sumi';
+    return `<div class="sample-item">
+      <span class="${labelCls}">${labelText}</span>
+      <span class="sample-item-name">${s.filename}</span>
+      <span class="sample-item-dur">${s.duration_s.toFixed(1)}s</span>
+      <button class="sample-btn" onclick="playSample('${s.label}','${s.filename}')">&#9654;</button>
+      <button class="sample-btn delete" onclick="deleteSample('${s.label}','${s.filename}')">&#10005;</button>
+    </div>`;
+  }).join('');
+}
+
+function playSample(label, filename) {
+  send({ command: 'get_sample_audio', label, filename });
+}
+
+function playSampleAudio(wav_b64) {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  const bin = atob(wav_b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  currentAudio = new Audio(url);
+  currentAudio.play();
+  currentAudio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; };
+}
+
+function deleteSample(label, filename) {
+  if (confirm(`Smazat ${filename}?`)) {
+    send({ command: 'delete_sample', label, filename });
+  }
+}
+
+// ── Devices ───────────────────────────────────────────────────────
+
+function refreshDevices() {
+  send({ command: 'get_devices' });
+}
+
+function onMicChange(val) {
+  if (val === '') return;
+  const idx = val === 'default' ? null : parseInt(val, 10);
+  send({ command: 'set_device', device_index: idx });
+}
+
+function updateDeviceList(devices) {
+  knownDevices = devices;
+  updateDeviceSelect();
+}
+
+function updateDeviceSelect() {
+  const select = document.getElementById('micSelect');
+  const status = document.getElementById('micStatus');
+
+  if (knownDevices.length === 0) {
+    select.innerHTML = '<option value="">Zadny mikrofon nenalezen</option>';
+    status.textContent = 'Mikrofon: neni pripojen';
+    status.className = 'mic-status no-mic';
+    return;
+  }
+
+  status.textContent = `Mikrofon: ${knownDevices.length} nalezen${knownDevices.length > 1 ? 'o' : ''}`;
+  status.className = 'mic-status';
+
+  let html = '<option value="default">Vychozi zarizeni</option>';
+  for (const dev of knownDevices) {
+    const selected = dev.index === currentDeviceIndex ? ' selected' : '';
+    html += `<option value="${dev.index}"${selected}>${dev.name}</option>`;
+  }
+  select.innerHTML = html;
+
+  if (currentDeviceIndex === null) {
+    select.value = 'default';
+  }
+}
+
+function onThresholdChange(val) {
+  threshold = parseFloat(val);
+  document.getElementById('thresholdVal').textContent = threshold.toFixed(2);
+  document.getElementById('thresholdMarker').style.left = (threshold * 100) + '%';
+  send({ command: 'set_threshold', value: threshold });
+}
+
+function onCooldownChange(val) {
+  document.getElementById('cooldownVal').textContent = val + ' s';
+  send({ command: 'set_cooldown', value: parseFloat(val) });
+}
+
+// ── UI updates ─────────────────────────────────────────────────
+
+function updateMethodUI() {
+  const fp = document.getElementById('btnFingerprint');
+  const ml = document.getElementById('btnML');
+  const info = document.getElementById('methodInfo');
+
+  fp.className = 'method-btn' + (currentMethod === 'fingerprint' ? ' active' : '');
+  ml.className = 'method-btn' + (currentMethod === 'ml' ? ' active' : '');
+
+  info.textContent = currentMethod === 'fingerprint'
+    ? 'Otisk — funguje od 1 vzorku, okamzita detekce'
+    : 'ML — YAMNet + TFLite, vyssi presnost, vyzaduje trenovani';
+}
+
+function updateConfidence(confidence, inferenceMs) {
+  const el = document.getElementById('confidenceValue');
+  const bar = document.getElementById('confidenceBar');
+  const pct = (confidence * 100).toFixed(0);
+
+  el.textContent = confidence.toFixed(2);
+  bar.style.width = pct + '%';
+  bar.className = 'confidence-bar-inner ' +
+    (confidence < 0.4 ? 'low' : confidence < threshold ? 'mid' : 'high');
+
+  document.getElementById('inferenceTime').textContent =
+    inferenceMs.toFixed(1) + ' ms';
+}
+
+function updateSampleCounts(counts) {
+  document.getElementById('countDoorbell').textContent = counts.doorbell || 0;
+  document.getElementById('countNotDoorbell').textContent = counts.not_doorbell || 0;
+
+  // Enable/disable training button
+  const canTrain = (counts.doorbell || 0) >= 3 && (counts.not_doorbell || 0) >= 3;
+  document.getElementById('btnTrain').disabled = !canTrain;
+}
+
+function updateTrainingProgress(msg) {
+  const pct = (msg.epoch / msg.total_epochs * 100).toFixed(0);
+  document.getElementById('trainingBar').style.width = pct + '%';
+  document.getElementById('trainingEpoch').textContent =
+    `Epoch ${msg.epoch}/${msg.total_epochs}`;
+  document.getElementById('trainingAccuracy').textContent =
+    `Accuracy: ${(msg.accuracy * 100).toFixed(1)}%`;
+  document.getElementById('trainingLoss').textContent =
+    `Loss: ${msg.loss.toFixed(4)}`;
+}
+
+// ── Detection log ──────────────────────────────────────────────
+
+function addLogEntry(msg) {
+  detectionLog.unshift(msg);
+  if (detectionLog.length > 100) detectionLog.pop();
+  renderLog();
+}
+
+function renderLog() {
+  const list = document.getElementById('logList');
+  if (detectionLog.length === 0) {
+    list.innerHTML = '<div class="log-empty">Zadne detekce</div>';
+    return;
+  }
+  list.innerHTML = detectionLog.map(d => {
+    const time = new Date(d.timestamp * 1000).toLocaleTimeString('cs-CZ');
+    return `<div class="log-entry">
+      <span class="log-time">${time}</span>
+      <span class="log-method">${d.method}</span>
+      <span class="log-confidence">${d.confidence.toFixed(3)}</span>
+    </div>`;
+  }).join('');
+}
+
+function flashDetection() {
+  const el = document.getElementById('confidenceValue');
+  el.style.color = 'var(--accent)';
+  setTimeout(() => { el.style.color = ''; }, 800);
+}
+
+// ── Waveform canvas ────────────────────────────────────────────
+
+function drawWaveform(b64) {
+  const raw = atob(b64);
+  const buf = new ArrayBuffer(raw.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+  const pcm = new Int16Array(buf);
+
+  const canvas = waveformCanvas;
+  const ctx = waveformCtx;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = getCanvasBg();
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.beginPath();
+  ctx.strokeStyle = getWaveColor();
+  ctx.lineWidth = 1.5;
+
+  const step = Math.ceil(pcm.length / w);
+  const mid = h / 2;
+  for (let x = 0; x < w; x++) {
+    const idx = x * step;
+    const val = (pcm[idx] || 0) / 32768;
+    const y = mid + val * mid * 0.9;
+    if (x === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Threshold line
+  ctx.strokeStyle = getGridColor();
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, mid);
+  ctx.lineTo(w, mid);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── Spectrogram canvas (scrolling) ─────────────────────────────
+
+function drawSpectrogram(b64, shape) {
+  const raw = atob(b64);
+  const buf = new ArrayBuffer(raw.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+  const data = new Float32Array(buf);
+
+  const rows = shape[0];
+  const cols = shape[1];
+
+  // Build column (mean across time for this chunk)
+  const column = new Float32Array(rows);
+  for (let r = 0; r < rows; r++) {
+    let sum = 0;
+    for (let c = 0; c < cols; c++) {
+      sum += data[r * cols + c];
+    }
+    column[r] = sum / cols;
+  }
+
+  spectrogramHistory.push(column);
+  if (spectrogramHistory.length > SPECTROGRAM_HISTORY_LEN) {
+    spectrogramHistory.shift();
+  }
+
+  const canvas = spectrogramCanvas;
+  const ctx = spectrogramCtx;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = getCanvasBg();
+  ctx.fillRect(0, 0, w, h);
+
+  const colW = w / SPECTROGRAM_HISTORY_LEN;
+  const rowH = h / rows;
+
+  // Find global max for normalization
+  let maxVal = 0.001;
+  for (const col of spectrogramHistory) {
+    for (let r = 0; r < col.length; r++) {
+      if (col[r] > maxVal) maxVal = col[r];
+    }
+  }
+
+  for (let x = 0; x < spectrogramHistory.length; x++) {
+    const col = spectrogramHistory[x];
+    for (let r = 0; r < rows; r++) {
+      const intensity = Math.min(1, col[r] / maxVal);
+      const hue = 240 - intensity * 240; // blue → red
+      const light = 10 + intensity * 50;
+      ctx.fillStyle = `hsl(${hue}, 80%, ${light}%)`;
+      // Flip vertically (low freq at bottom)
+      ctx.fillRect(x * colW, (rows - 1 - r) * rowH, colW + 1, rowH + 1);
+    }
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────
+
+function showToast(text, isError = false) {
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = 'toast';
+  el.textContent = text;
+  Object.assign(el.style, {
+    position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+    padding: '10px 24px', borderRadius: '8px', fontSize: '0.85rem', zIndex: '999',
+    background: isError ? 'var(--accent)' : 'var(--surface2)', color: 'var(--text)',
+  });
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── Theme detection ─────────────────────────────────────────────
+
+function isDarkMode() {
+  return document.documentElement.getAttribute('data-bs-theme') === 'dark'
+    || document.body.classList.contains('dark-mode')
+    || window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function getCanvasBg() { return isDarkMode() ? '#0f172a' : '#f0f0f0'; }
+function getWaveColor() { return isDarkMode() ? '#38bdf8' : '#0369a1'; }
+function getGridColor() { return isDarkMode() ? 'rgba(233,69,96,0.3)' : 'rgba(233,69,96,0.2)'; }
+
+// ── Init ───────────────────────────────────────────────────────
+
+connect();
+</script>
+</body>
+</html>
