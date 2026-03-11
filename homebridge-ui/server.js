@@ -14,18 +14,34 @@ class DoorbellMLUiServer extends HomebridgePluginUiServer {
     super();
 
     this.onRequest('/ws-config', async () => {
-      const config = await this.getPluginConfig();
-      const pluginConfig = config[0] || {};
-      const port = pluginConfig.wsPort || 8581;
+      let port = 8581;
+
+      // Try to read port from Homebridge config
+      try {
+        const storagePath = this.homebridgeStoragePath ||
+          process.env.UIX_STORAGE_PATH ||
+          '/homebridge';
+        const configPath = path.join(storagePath, 'config.json');
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const platforms = config.platforms || [];
+        const doorbell = platforms.find(p => p.platform === 'DoorbellML');
+        if (doorbell && doorbell.wsPort) {
+          port = doorbell.wsPort;
+        }
+      } catch (e) {
+        // Use default port
+      }
 
       // Read auth token from Homebridge storage
       let token = '';
       try {
-        const storagePath = this.homebridgeStoragePath;
+        const storagePath = this.homebridgeStoragePath ||
+          process.env.UIX_STORAGE_PATH ||
+          '/homebridge';
         const tokenPath = path.join(storagePath, 'doorbell-detector-token');
         token = fs.readFileSync(tokenPath, 'utf8').trim();
       } catch (e) {
-        this.log.warn('Could not read auth token:', e.message);
+        // Token not yet written — sidecar may not have started
       }
 
       return { port, token };
