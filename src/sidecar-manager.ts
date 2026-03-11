@@ -15,8 +15,8 @@ import type { SidecarCommand, SidecarMessage } from './types';
 
 const PYTHON_DIR = path.resolve(__dirname, '..', 'python');
 const VENV_DIR = path.resolve(PYTHON_DIR, '.venv');
-const CONNECT_RETRY_MS = 500;
-const CONNECT_MAX_RETRIES = 20;
+const CONNECT_RETRY_MS = 1000;
+const CONNECT_MAX_RETRIES = 60;
 
 export class SidecarManager extends EventEmitter {
   private proc: ChildProcess | null = null;
@@ -60,7 +60,11 @@ export class SidecarManager extends EventEmitter {
 
     this.proc.stderr!.on('data', (data: Buffer) => {
       for (const line of data.toString().split('\n')) {
-        if (line.trim()) this.log.warn('[python] %s', line.trim());
+        const t = line.trim();
+        // Filter noisy ALSA/JACK warnings (harmless)
+        if (!t || t.startsWith('ALSA lib') || t.startsWith('jack ') ||
+            t.includes('JackShm') || t.includes('Cannot connect to server')) continue;
+        this.log.warn('[python] %s', t);
       }
     });
 

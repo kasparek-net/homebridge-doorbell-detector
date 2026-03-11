@@ -10,7 +10,6 @@ Homebridge storage dir, not /tmp/). Permissions 0o600 (owner only).
 
 import asyncio
 import base64
-import ctypes
 import json
 import logging
 import os
@@ -20,18 +19,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-
-# Suppress noisy ALSA error messages (harmless warnings about missing PCMs)
-try:
-    _alsa = ctypes.cdll.LoadLibrary("libasound.so.2")
-    _alsa.snd_lib_error_set_handler(
-        ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
-                         ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)(
-            lambda *_: None
-        )
-    )
-except Exception:
-    pass
 
 from recorder import AudioRecorder, compute_rms, waveform_to_pcm_bytes
 from detector import (

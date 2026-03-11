@@ -1,6 +1,6 @@
 {
   "name": "homebridge-doorbell-detector",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Homebridge doorbell plugin with sound detection — FFT fingerprint + ML (YAMNet/TFLite) on RPi 4",
   "main": "dist/index.js",
   "scripts": {
