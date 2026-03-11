@@ -1,54 +1,54 @@
 # homebridge-doorbell-detector
 
-Homebridge plugin pro detekci zvuku zvonku pomoci ML a FFT otisku. Bezi na Raspberry Pi 4.
+Homebridge plugin for doorbell sound detection using ML and FFT fingerprinting. Runs on Raspberry Pi 4.
 
 [![npm](https://img.shields.io/npm/v/homebridge-doorbell-detector)](https://www.npmjs.com/package/homebridge-doorbell-detector)
 [![license](https://img.shields.io/npm/l/homebridge-doorbell-detector)](LICENSE)
 
-## Jak to funguje
+## How it works
 
-Plugin posloucha mikrofon a detekuje zvuk zvonku dvema metodami:
+The plugin listens via microphone and detects doorbell sounds using two methods:
 
-| Metoda | Popis | Potreba vzorku | Presnost |
-|--------|-------|----------------|----------|
-| **Otisk (FFT)** | Spektralni korelace s ulozenym otiskem | 1 vzorek | Dobra |
-| **ML (YAMNet)** | Neuronova sit fine-tuned na vase vzorky | 3+ vzorku | Vyssi |
+| Method | Description | Samples needed | Accuracy |
+|--------|-------------|----------------|----------|
+| **Fingerprint (FFT)** | Spectral correlation with a stored fingerprint | 1 sample | Good |
+| **ML (YAMNet)** | Neural network fine-tuned on your samples | 3+ samples | Higher |
 
-Pri detekci posle **HomeKit doorbell notifikaci** do vaseho iPhone/Apple Watch.
+When a doorbell is detected, it sends a **HomeKit doorbell notification** to your iPhone/Apple Watch.
 
-## Pozadavky
+## Requirements
 
 - **Homebridge** >= 1.6.0
 - **Node.js** >= 18
 - **Python 3** >= 3.9
-- **Mikrofon** pripojeny k RPi (USB nebo I2S)
-- **RPi 4** (doporuceno) — trenovani ML na slabsim HW bude pomalejsi
+- **Microphone** connected to RPi (USB or I2S)
+- **RPi 4** (recommended) — ML training on weaker hardware will be slower
 
-### Systemove zavislosti (RPi / Debian)
+### System dependencies (RPi / Debian)
 
 ```bash
 sudo apt-get install -y python3 python3-venv python3-dev portaudio19-dev
 ```
 
-## Instalace
+## Installation
 
-### Pres Homebridge Config UI X
+### Via Homebridge Config UI X
 
-1. Otevrete Config UI X
+1. Open Config UI X
 2. Plugins → Search → `homebridge-doorbell-detector`
 3. Install
 
-### Pres prikazovy radek
+### Via command line
 
 ```bash
 sudo npm install -g homebridge-doorbell-detector
 ```
 
-Python virtualenv a zavislosti se nainstalují automaticky pri `npm install`.
+Python virtualenv and dependencies are installed automatically during `npm install`.
 
-## Konfigurace
+## Configuration
 
-Plugin se konfiguruje v Config UI X. Minimalni konfigurace:
+The plugin is configured via Config UI X. Minimal configuration:
 
 ```json
 {
@@ -61,51 +61,51 @@ Plugin se konfiguruje v Config UI X. Minimalni konfigurace:
 }
 ```
 
-### Vsechny volby
+### All options
 
-| Parametr | Typ | Vychozi | Popis |
-|----------|-----|---------|-------|
-| `name` | string | `"Doorbell ML"` | Nazev zarizeni v HomeKit |
-| `detectionMethod` | string | `"fingerprint"` | `"fingerprint"` nebo `"ml"` |
-| `threshold` | number | `0.7` | Prah detekce (0.1 - 1.0) |
-| `cooldown` | number | `5` | Min. sekundy mezi detekcemi |
-| `audioDevice` | integer | auto | Index PyAudio zarizeni |
-| `wsPort` | integer | `8581` | Port pro WebSocket stream |
-| `pythonPath` | string | auto | Cesta k Python 3 binarce |
-| `autoStart` | boolean | `true` | Spustit detekci pri startu |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | string | `"Doorbell ML"` | Device name in HomeKit |
+| `detectionMethod` | string | `"fingerprint"` | `"fingerprint"` or `"ml"` |
+| `threshold` | number | `0.7` | Detection threshold (0.1 - 1.0) |
+| `cooldown` | number | `5` | Min. seconds between detections |
+| `audioDevice` | integer | auto | PyAudio device index |
+| `wsPort` | integer | `8581` | WebSocket stream port |
+| `pythonPath` | string | auto | Path to Python 3 binary |
+| `autoStart` | boolean | `true` | Start detection on launch |
 
-## Pouziti
+## Usage
 
-### 1. Nahrajte vzorek zvonku
+### 1. Record a doorbell sample
 
-Otevrete Config UI X → Doorbell Detector dashboard:
+Open Config UI X → Doorbell Detector dashboard:
 
-1. Kliknete **"Nahrat zvonek"** a zazvoňte
-2. Kliknete **"Nahrat sumi"** pro zaznam okolnich zvuku
-3. Opakujte pro lepsi presnost
+1. Click **"Record doorbell"** and ring your doorbell
+2. Click **"Record noise"** to capture ambient sounds
+3. Repeat for better accuracy
 
-### 2. Zvolte metodu detekce
+### 2. Choose a detection method
 
-- **Otisk (FFT)** — funguje hned po prvnim vzorku zvonku
-- **ML (YAMNet)** — kliknete "Trenovat model" (potreba 3+ vzorku kazde tridy)
+- **Fingerprint (FFT)** — works immediately after the first doorbell sample
+- **ML (YAMNet)** — click "Train model" (requires 3+ samples per class)
 
-### 3. Spuste detekci
+### 3. Start detection
 
-Kliknete **Start** v dashboardu. Plugin zacne poslouchat a pri detekci posle HomeKit notifikaci.
+Click **Start** in the dashboard. The plugin will begin listening and send HomeKit notifications upon detection.
 
 ## Dashboard
 
-Config UI X dashboard zobrazuje v realnem case:
+The Config UI X dashboard displays in real time:
 
-- **Prepinac metody** — Otisk / ML
-- **Confidence score** — jak moc si detektor odpovida zvuku zvonku
-- **Waveform** — live prubeh zvuku
-- **Spektrogram** — mel-frekvencni vizualizace
-- **Detection log** — historie detekci s casem a confidence
-- **Trenovani** — progress bar, epoch, accuracy, loss
-- **Mikrofon indikator** — cerveny pulzujici MIC kdyz plugin posloucha
+- **Method toggle** — Fingerprint / ML
+- **Confidence score** — how closely the sound matches the doorbell
+- **Waveform** — live audio waveform
+- **Spectrogram** — mel-frequency visualization
+- **Detection log** — detection history with timestamps and confidence
+- **Training** — progress bar, epoch, accuracy, loss
+- **Microphone indicator** — red pulsing MIC icon when the plugin is listening
 
-## Architektura
+## Architecture
 
 ```
 ┌──────────────┐  Unix socket   ┌──────────────┐  WebSocket   ┌───────────┐
@@ -118,27 +118,27 @@ Config UI X dashboard zobrazuje v realnem case:
 └──────────────┘                └──────────────┘              └───────────┘
 ```
 
-- **Python sidecar** — nahrava audio, pocita FFT/ML inferenci, posila vysledky
-- **Node.js plugin** — spousti sidecar, preposila stream do UI, spravuje HomeKit accessory
-- **Config UI dashboard** — zobrazuje data, ovlada detekci, spravuje vzorky a trenovani
+- **Python sidecar** — records audio, computes FFT/ML inference, sends results
+- **Node.js plugin** — launches sidecar, forwards stream to UI, manages HomeKit accessory
+- **Config UI dashboard** — displays data, controls detection, manages samples and training
 
-## Bezpecnost
+## Security
 
-- **WebSocket** binds na `127.0.0.1` (jen localhost) s tokenovou autentizaci
-- **Unix socket** v Homebridge storage dir s `0600` permissions
-- **pip install** pouziva `--no-cache-dir` a `--only-binary`
-- **Mikrofon** — jasny indikator v UI kdyz plugin posloucha, audio neopousti zarizeni
+- **WebSocket** binds to `127.0.0.1` (localhost only) with token authentication
+- **Unix socket** in Homebridge storage dir with `0600` permissions
+- **pip install** uses `--no-cache-dir` and `--only-binary`
+- **Microphone** — clear indicator in UI when the plugin is listening, audio never leaves the device
 
-## Vyvoj
+## Development
 
 ```bash
-git clone https://github.com/TODO/homebridge-doorbell-detector.git
+git clone https://github.com/kasparek-net/homebridge-doorbell-detector.git
 cd homebridge-doorbell-detector
 npm install
 npm run watch  # TypeScript watch mode
 ```
 
-Pro testovani bez Homebridge:
+For testing without Homebridge:
 
 ```bash
 # Terminal 1: Python sidecar
