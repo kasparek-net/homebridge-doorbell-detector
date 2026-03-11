@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -480,26 +480,26 @@
 
 <!-- Sidecar status banner -->
 <div class="sidecar-banner" id="sidecarBanner">
-  <strong>Python sidecar neni spusten</strong>
+  <strong>Python sidecar is not running</strong>
   <span id="sidecarError"></span>
   <div class="sidecar-troubleshoot">
-    Zkontrolujte: je nainstalovan Python 3? Existuje virtualenv v python/.venv/?
-    Podrobnosti v logu Homebridge.
+    Check: Is Python 3 installed? Does the virtualenv exist in python/.venv/?
+    See Homebridge log for details.
   </div>
 </div>
 
 <!-- Method toggle -->
 <div class="card">
-  <div class="card-title">Metoda detekce</div>
+  <div class="card-title">Detection Method</div>
   <div class="method-toggle">
     <button class="method-btn active" id="btnFingerprint" onclick="setMethod('fingerprint')">
-      Otisk (FFT)
+      Fingerprint (FFT)
     </button>
     <button class="method-btn" id="btnML" onclick="setMethod('ml')">
       ML (YAMNet)
     </button>
   </div>
-  <div class="method-info" id="methodInfo">Otisk — funguje od 1 vzorku, okamžitá detekce</div>
+  <div class="method-info" id="methodInfo">Fingerprint — works from 1 sample, instant detection</div>
 </div>
 
 <!-- Confidence -->
@@ -528,17 +528,17 @@
 
 <!-- Settings -->
 <div class="card">
-  <div class="card-title">Nastaveni</div>
+  <div class="card-title">Settings</div>
   <div class="mic-select-row">
-    <label>Mikrofon</label>
+    <label>Microphone</label>
     <select id="micSelect" onchange="onMicChange(this.value)">
-      <option value="">Nacitam...</option>
+      <option value="">Loading...</option>
     </select>
-    <button class="mic-refresh-btn" onclick="refreshDevices()" title="Obnovit seznam">&#x21bb;</button>
+    <button class="mic-refresh-btn" onclick="refreshDevices()" title="Refresh list">&#x21bb;</button>
   </div>
-  <div class="mic-status" id="micStatus">Mikrofon: nacitam...</div>
+  <div class="mic-status" id="micStatus">Microphone: loading...</div>
   <div class="vu-meter-row">
-    <label>Uroven</label>
+    <label>Level</label>
     <div class="vu-meter-outer"><div class="vu-meter-bar" id="vuBar"></div></div>
     <span class="vu-meter-val" id="vuVal">-- dB</span>
   </div>
@@ -558,31 +558,31 @@
 
 <!-- Samples -->
 <div class="card">
-  <div class="card-title">Vzorky</div>
+  <div class="card-title">Samples</div>
   <div class="sample-grid">
     <div class="sample-box">
       <div class="sample-count" id="countDoorbell">0</div>
-      <div class="sample-label">Zvonek</div>
+      <div class="sample-label">Doorbell</div>
     </div>
     <div class="sample-box">
       <div class="sample-count" id="countNotDoorbell">0</div>
-      <div class="sample-label">Okolni zvuky</div>
+      <div class="sample-label">Ambient noise</div>
     </div>
   </div>
   <div class="controls">
-    <button class="btn btn-primary" onclick="recordSample('doorbell')">Nahrat zvonek</button>
-    <button class="btn btn-secondary" onclick="recordSample('not_doorbell')">Nahrat sumi</button>
-    <button class="btn btn-secondary" id="btnListSamples" onclick="toggleSampleList()">Zobrazit vzorky</button>
-    <button class="btn btn-danger" onclick="deleteSamples()">Smazat vse</button>
+    <button class="btn btn-primary" onclick="recordSample('doorbell')">Record doorbell</button>
+    <button class="btn btn-secondary" onclick="recordSample('not_doorbell')">Record noise</button>
+    <button class="btn btn-secondary" id="btnListSamples" onclick="toggleSampleList()">Show samples</button>
+    <button class="btn btn-danger" onclick="deleteSamples()">Delete all</button>
   </div>
   <div class="sample-list" id="sampleList"></div>
 </div>
 
 <!-- Training -->
 <div class="card" id="trainingCard">
-  <div class="card-title">ML Trenovani</div>
+  <div class="card-title">ML Training</div>
   <div class="controls" style="margin-bottom: 8px;">
-    <button class="btn btn-primary" id="btnTrain" onclick="startTraining()">Trenovat model</button>
+    <button class="btn btn-primary" id="btnTrain" onclick="startTraining()">Train model</button>
     <span id="trainingStatus" style="font-size: 0.85rem; color: var(--text2); line-height: 2.2;"></span>
   </div>
   <div class="progress-bar-outer" id="trainingProgress" style="display: none;">
@@ -599,7 +599,7 @@
 <div class="card">
   <div class="card-title">Detection Log</div>
   <div class="log-list" id="logList">
-    <div class="log-empty">Zadne detekce</div>
+    <div class="log-empty">No detections yet</div>
   </div>
 </div>
 
@@ -708,7 +708,7 @@ function handleMessage(msg) {
 
     case 'recording_started':
       if (msg.mic_active != null) updateMicIndicator(msg.mic_active);
-      showToast(`Nahravam ${msg.label === 'doorbell' ? 'zvonek' : 'sumi'}...`);
+      showToast(`Recording ${msg.label === 'doorbell' ? 'doorbell' : 'noise'}...`);
       break;
 
     case 'recording_complete':
@@ -721,7 +721,7 @@ function handleMessage(msg) {
       document.getElementById('trainingProgress').style.display = '';
       document.getElementById('trainingStats').style.display = 'flex';
       document.getElementById('btnTrain').disabled = true;
-      document.getElementById('trainingStatus').textContent = 'Probiha trenovani...';
+      document.getElementById('trainingStatus').textContent = 'Training in progress...';
       break;
 
     case 'training_progress':
@@ -731,7 +731,7 @@ function handleMessage(msg) {
     case 'training_complete':
       document.getElementById('btnTrain').disabled = false;
       document.getElementById('trainingStatus').textContent =
-        `Hotovo! Accuracy: ${(msg.metrics.val_accuracy * 100).toFixed(1)}%`;
+        `Done! Accuracy: ${(msg.metrics.val_accuracy * 100).toFixed(1)}%`;
       break;
 
     case 'training_failed':
@@ -746,7 +746,7 @@ function handleMessage(msg) {
     case 'device_set':
       currentDeviceIndex = msg.device_index;
       updateDeviceSelect();
-      showToast('Mikrofon zmenen');
+      showToast('Microphone changed');
       break;
 
     case 'sample_list':
@@ -849,7 +849,7 @@ function startTraining() {
 }
 
 function deleteSamples() {
-  if (confirm('Smazat vsechny vzorky?')) {
+  if (confirm('Delete all samples?')) {
     send({ command: 'delete_samples', label: 'doorbell' });
     send({ command: 'delete_samples', label: 'not_doorbell' });
   }
@@ -896,17 +896,17 @@ function setControlsEnabled(enabled) {
 // ── Sample quality ────────────────────────────────────────────────
 
 function showRecordingResult(msg) {
-  const label = msg.label === 'doorbell' ? 'zvonek' : 'sumi';
-  let text = `Nahrano! (${label})`;
+  const label = msg.label === 'doorbell' ? 'doorbell' : 'noise';
+  let text = `Recorded! (${label})`;
   let qualClass = '';
 
   if (msg.quality) {
     const q = msg.quality;
     if (q.clipped_ratio > 0.01) {
-      text += ' — Prilis hlasne (clipping)';
+      text += ' — Too loud (clipping)';
       qualClass = 'quality-bad';
     } else if (q.rms_db < -35 && msg.label === 'doorbell') {
-      text += ' — Prilis tiche';
+      text += ' — Too quiet';
       qualClass = 'quality-warn';
     } else {
       text += ' — OK';
@@ -924,10 +924,10 @@ function toggleSampleList() {
   const list = document.getElementById('sampleList');
 
   if (sampleListVisible) {
-    btn.textContent = 'Skryt vzorky';
+    btn.textContent = 'Hide samples';
     send({ command: 'list_samples' });
   } else {
-    btn.textContent = 'Zobrazit vzorky';
+    btn.textContent = 'Show samples';
     list.innerHTML = '';
   }
 }
@@ -935,12 +935,12 @@ function toggleSampleList() {
 function renderSampleList(samples) {
   const list = document.getElementById('sampleList');
   if (samples.length === 0) {
-    list.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text2);font-size:0.8rem;">Zadne vzorky</div>';
+    list.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text2);font-size:0.8rem;">No samples</div>';
     return;
   }
   list.innerHTML = samples.map(s => {
     const labelCls = s.label === 'doorbell' ? 'sample-item-label doorbell' : 'sample-item-label';
-    const labelText = s.label === 'doorbell' ? 'zvonek' : 'sumi';
+    const labelText = s.label === 'doorbell' ? 'doorbell' : 'noise';
     return `<div class="sample-item">
       <span class="${labelCls}">${labelText}</span>
       <span class="sample-item-name">${s.filename}</span>
@@ -971,7 +971,7 @@ function playSampleAudio(wav_b64) {
 }
 
 function deleteSample(label, filename) {
-  if (confirm(`Smazat ${filename}?`)) {
+  if (confirm(`Delete ${filename}?`)) {
     send({ command: 'delete_sample', label, filename });
   }
 }
@@ -998,16 +998,16 @@ function updateDeviceSelect() {
   const status = document.getElementById('micStatus');
 
   if (knownDevices.length === 0) {
-    select.innerHTML = '<option value="">Zadny mikrofon nenalezen</option>';
-    status.textContent = 'Mikrofon: neni pripojen';
+    select.innerHTML = '<option value="">No microphone found</option>';
+    status.textContent = 'Microphone: not connected';
     status.className = 'mic-status no-mic';
     return;
   }
 
-  status.textContent = `Mikrofon: ${knownDevices.length} nalezen${knownDevices.length > 1 ? 'o' : ''}`;
+  status.textContent = `Microphone: ${knownDevices.length} found`;
   status.className = 'mic-status';
 
-  let html = '<option value="default">Vychozi zarizeni</option>';
+  let html = '<option value="default">Default device</option>';
   for (const dev of knownDevices) {
     const selected = dev.index === currentDeviceIndex ? ' selected' : '';
     html += `<option value="${dev.index}"${selected}>${dev.name}</option>`;
@@ -1042,8 +1042,8 @@ function updateMethodUI() {
   ml.className = 'method-btn' + (currentMethod === 'ml' ? ' active' : '');
 
   info.textContent = currentMethod === 'fingerprint'
-    ? 'Otisk — funguje od 1 vzorku, okamzita detekce'
-    : 'ML — YAMNet + TFLite, vyssi presnost, vyzaduje trenovani';
+    ? 'Fingerprint — works from 1 sample, instant detection'
+    : 'ML — YAMNet + TFLite, higher accuracy, requires training';
 }
 
 function updateConfidence(confidence, inferenceMs) {
@@ -1091,11 +1091,11 @@ function addLogEntry(msg) {
 function renderLog() {
   const list = document.getElementById('logList');
   if (detectionLog.length === 0) {
-    list.innerHTML = '<div class="log-empty">Zadne detekce</div>';
+    list.innerHTML = '<div class="log-empty">No detections yet</div>';
     return;
   }
   list.innerHTML = detectionLog.map(d => {
-    const time = new Date(d.timestamp * 1000).toLocaleTimeString('cs-CZ');
+    const time = new Date(d.timestamp * 1000).toLocaleTimeString('en-US');
     return `<div class="log-entry">
       <span class="log-time">${time}</span>
       <span class="log-method">${d.method}</span>
