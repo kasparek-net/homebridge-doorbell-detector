@@ -10,6 +10,7 @@ Homebridge storage dir, not /tmp/). Permissions 0o600 (owner only).
 
 import asyncio
 import base64
+import ctypes
 import json
 import logging
 import os
@@ -19,6 +20,18 @@ import time
 from pathlib import Path
 
 import numpy as np
+
+# Suppress noisy ALSA error messages (harmless warnings about missing PCMs)
+try:
+    _alsa = ctypes.cdll.LoadLibrary("libasound.so.2")
+    _alsa.snd_lib_error_set_handler(
+        ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
+                         ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)(
+            lambda *_: None
+        )
+    )
+except Exception:
+    pass
 
 from recorder import AudioRecorder, compute_rms, waveform_to_pcm_bytes
 from detector import (
@@ -549,7 +562,12 @@ class Sidecar:
             else:
                 raise RuntimeError(f"{sock_path} exists but is not a socket — refusing to overwrite")
 
-        self.recorder = AudioRecorder()
+        # Auto-detect first working input device
+        devices = AudioRecorder.list_devices()
+        device_index = devices[0]["index"] if devices else None
+        logger.info("Using audio device: %s (index=%s)",
+                     devices[0]["name"] if devices else "default", device_index)
+        self.recorder = AudioRecorder(device_index=device_index)
         self.recorder.open()
 
         server = await loop.create_unix_server(
