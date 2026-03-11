@@ -1,6 +1,6 @@
 {
   "name": "homebridge-doorbell-detector",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Homebridge doorbell plugin with sound detection — FFT fingerprint + ML (YAMNet/TFLite) on RPi 4",
   "main": "dist/index.js",
   "scripts": {
@@ -23,10 +23,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jakubkasparek/homebridge-doorbell-detector.git"
+    "url": "https://github.com/kasparek-net/homebridge-doorbell-detector.git"
   },
   "bugs": {
-    "url": "https://github.com/jakubkasparek/homebridge-doorbell-detector/issues"
+    "url": "https://github.com/kasparek-net/homebridge-doorbell-detector/issues"
   },
   "engines": {
     "homebridge": ">=1.6.0",
@@ -42,7 +42,7 @@
     "homebridge": "^1.8.0",
     "typescript": "^5.3.0"
   },
-  "homepage": "https://github.com/jakubkasparek/homebridge-doorbell-detector#readme",
+  "homepage": "https://github.com/kasparek-net/homebridge-doorbell-detector#readme",
   "files": [
     "dist/",
     "python/",
