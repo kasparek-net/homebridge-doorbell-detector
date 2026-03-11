@@ -685,6 +685,7 @@ function handleMessage(msg) {
 
     case 'level':
       updateVuMeter(msg.rms);
+      if (msg.waveform_b64) drawWaveform(msg.waveform_b64);
       break;
 
     case 'sidecar_status':
@@ -735,7 +736,7 @@ function handleMessage(msg) {
 
     case 'training_failed':
       document.getElementById('btnTrain').disabled = false;
-      document.getElementById('trainingStatus').textContent = `Chyba: ${msg.error}`;
+      document.getElementById('trainingStatus').textContent = `Error: ${msg.error}`;
       break;
 
     case 'devices':
@@ -759,7 +760,7 @@ function handleMessage(msg) {
     case 'sample_deleted':
       updateSampleCounts(msg.counts);
       if (sampleListVisible) send({ command: 'list_samples' });
-      showToast(`Vzorek smazan (${msg.label})`);
+      showToast(`Sample deleted (${msg.label})`);
       break;
 
     case 'sample_counts':
@@ -768,7 +769,7 @@ function handleMessage(msg) {
       break;
 
     case 'error':
-      showToast(`Chyba: ${msg.error}`, true);
+      showToast(`Error: ${msg.error}`, true);
       break;
   }
 }
@@ -829,7 +830,7 @@ function toggleDetection() {
 function testDoorbell() {
   send({ command: 'test_doorbell' });
   document.getElementById('btnTest').disabled = true;
-  showToast('Test doorbell odeslan');
+  showToast('Test doorbell sent');
   setTimeout(() => { document.getElementById('btnTest').disabled = false; }, 2000);
 }
 

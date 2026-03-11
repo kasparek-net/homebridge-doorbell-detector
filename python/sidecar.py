@@ -367,10 +367,14 @@ class Sidecar:
                 )
                 rms = compute_rms(waveform)
                 peak = float(np.max(np.abs(waveform)))
+                # Send waveform for live preview
+                pcm_int16 = (waveform * 32767).astype(np.int16)
+                waveform_b64 = base64.b64encode(pcm_int16.tobytes()).decode()
                 self._send({
                     "type": "level",
                     "rms": rms,
                     "peak": peak,
+                    "waveform_b64": waveform_b64,
                 })
             except Exception:
                 logger.exception("Error in level monitor loop")
